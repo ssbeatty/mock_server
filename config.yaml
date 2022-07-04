@@ -1,0 +1,8 @@
+addr: :8084
+
+db:
+  driver: postgres
+  username: odoo
+  password: odoo
+  dsn: 127.0.0.1:5432
+  dbname: mock_server

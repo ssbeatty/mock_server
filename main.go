@@ -1,17 +1,35 @@
 package main
 
 import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
+	"log"
+	"mock_server/config"
+	"mock_server/internal/storage"
+	"mock_server/internal/web"
 )
 
 func main() {
-	r := gin.Default()
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
-	})
-	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+	if err := config.NewConfig(); err != nil {
+		log.Fatal(err)
+	}
+
+	addr := viper.GetString("addr")
+
+	db := &storage.DB{}
+	err := viper.UnmarshalKey("db", db)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	dbSrv := storage.NewService(db)
+	err = dbSrv.Open()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	service := web.NewService(addr, dbSrv)
+
+	if err := service.Serve(); err != nil {
+		log.Fatal(err)
+	}
 }
