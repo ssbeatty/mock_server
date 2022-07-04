@@ -1,4 +1,6 @@
-addr: :8084
+app:
+  addr: :8084
+  secret_path: config/secrets/id_rsa_mock
 
 db:
   driver: postgres

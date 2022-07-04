@@ -20,10 +20,12 @@ type Context struct {
 	*gin.Context
 }
 
-func (c *Context) ResponseError(msg string) {
-	c.JSON(http.StatusOK, msg)
+func (c *Context) ResponseError(msg string, code int) {
+	d := generateResponsePayload(code, msg)
+	c.JSON(http.StatusOK, d)
 }
 
-func (c *Context) ResponseOk(data interface{}) {
-	c.JSON(http.StatusOK, data)
+func (c *Context) ResponseOk(data ...interface{}) {
+	d := generateResponsePayload(HttpStatusOk, HttpResponseSuccess, data...)
+	c.JSON(http.StatusOK, d)
 }

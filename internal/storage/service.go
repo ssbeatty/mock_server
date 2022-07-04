@@ -8,16 +8,17 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"mock_server/pkg/log"
 	"strings"
 )
 
 type DB struct {
-	Driver   string `yaml:"driver"`
-	UserName string `yaml:"username"`
-	PassWord string `yaml:"password"`
-	Dsn      string `yaml:"dsn"`
-	DbName   string `yaml:"dbname"`
+	Driver   string `mapstructure:"driver"`
+	UserName string `mapstructure:"username"`
+	PassWord string `mapstructure:"password"`
+	Dsn      string `mapstructure:"dsn"`
+	DbName   string `mapstructure:"dbname"`
 }
 
 type Service struct {
@@ -70,9 +71,10 @@ func (s *Service) Open() error {
 			return err
 		}
 	}
+	d.Logger = logger.Default.LogMode(logger.Silent)
 
 	s.db = d
-	if err = s.db.AutoMigrate(new(API)); err != nil {
+	if err = s.db.AutoMigrate(new(API), new(User)); err != nil {
 		return err
 	}
 

@@ -1,8 +1,16 @@
 package config
 
 import (
+	"embed"
 	"fmt"
 	"github.com/spf13/viper"
+	"io/ioutil"
+	"os"
+)
+
+var (
+	//go:embed secrets/id_rsa_mock
+	secretKey embed.FS
 )
 
 func NewConfig() error {
@@ -17,4 +25,26 @@ func NewConfig() error {
 	}
 
 	return nil
+}
+
+type App struct {
+	Addr          string `mapstructure:"addr"`
+	SecretKeyPath string `mapstructure:"secret_path"`
+}
+
+func ParseSecret(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		data, err := secretKey.ReadFile("secrets/id_rsa_mock")
+		if err != nil {
+			return nil, err
+		}
+		return data, nil
+	}
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }

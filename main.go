@@ -13,21 +13,23 @@ func main() {
 		log.Fatal(err)
 	}
 
-	addr := viper.GetString("addr")
+	app := &config.App{}
+	if err := viper.UnmarshalKey("app", app); err != nil {
+		log.Fatal(err)
+	}
 
 	db := &storage.DB{}
-	err := viper.UnmarshalKey("db", db)
-	if err != nil {
+	if err := viper.UnmarshalKey("db", db); err != nil {
 		log.Fatal(err)
 	}
 
 	dbSrv := storage.NewService(db)
-	err = dbSrv.Open()
+	err := dbSrv.Open()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	service := web.NewService(addr, dbSrv)
+	service := web.NewService(app, dbSrv)
 
 	if err := service.Serve(); err != nil {
 		log.Fatal(err)

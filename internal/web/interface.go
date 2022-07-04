@@ -26,4 +26,6 @@ type Logger interface {
 
 type IStorage interface {
 	GetAllRouters() ([]storage.API, error)
+	GetUserByName(username string) (*storage.User, error)
+	SaveUser(username, password, email string) error
 }

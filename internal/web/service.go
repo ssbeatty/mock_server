@@ -1,30 +1,45 @@
 package web
 
 import (
+	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
+	"mock_server/config"
 	"mock_server/internal/storage"
 	"mock_server/pkg/log"
 	"net/http"
+	"time"
+)
+
+const (
+	identityKey = "id"
 )
 
 type Service struct {
 	*gin.Engine
 
-	db     IStorage
-	Addr   string
-	Logger Logger
+	secretPath string
+	db         IStorage
+	Addr       string
+	Logger     Logger
 }
 
-func NewService(Addr string, db *storage.Service) *Service {
+type login struct {
+	UserName string `form:"username" json:"username" binding:"required"`
+	PassWord string `form:"password" json:"password" binding:"required"`
+}
+
+func NewService(app *config.App, db *storage.Service) *Service {
 	gin.SetMode(gin.ReleaseMode)
 	logger := log.NewLogrusAdapt(logrus.StandardLogger()).WithField("service", "web")
 
 	service := &Service{
-		Addr:   Addr,
-		Logger: logger,
-		Engine: gin.Default(),
-		db:     db,
+		Addr:       app.Addr,
+		secretPath: app.SecretKeyPath,
+		Logger:     logger,
+		Engine:     gin.Default(),
+		db:         db,
 	}
 
 	return service
@@ -37,6 +52,16 @@ func (s *Service) Serve() error {
 	return s.Run(s.Addr)
 }
 
+func helloHandler(c *gin.Context) {
+	claims := jwt.ExtractClaims(c)
+	user, _ := c.Get(identityKey)
+	c.JSON(200, gin.H{
+		"userID":   claims[identityKey],
+		"userName": user.(*storage.User).UserName,
+		"text":     "Hello World.",
+	})
+}
+
 func (s *Service) initRouters() {
 	s.Use(CORS).Use(exportHeaders)
 
@@ -44,8 +69,88 @@ func (s *Service) initRouters() {
 		c.String(http.StatusOK, "ok")
 	})
 
-	// admin apis
-	apiV1 := s.Group("/admin/api/v1")
+	data, err := config.ParseSecret(s.secretPath)
+	if err != nil {
+		s.Logger.Fatal("获取secret key失败!")
+	}
+
+	// the jwt middleware
+	authMiddleware, err := jwt.New(&jwt.GinJWTMiddleware{
+		Realm:       "Mock Server",
+		Key:         data,
+		Timeout:     time.Hour,
+		MaxRefresh:  time.Hour,
+		IdentityKey: identityKey,
+		PayloadFunc: func(data interface{}) jwt.MapClaims {
+			if v, ok := data.(*storage.User); ok {
+				return jwt.MapClaims{
+					identityKey: v.UserName,
+				}
+			}
+			return jwt.MapClaims{}
+		},
+		IdentityHandler: func(c *gin.Context) interface{} {
+			claims := jwt.ExtractClaims(c)
+			return &storage.User{
+				UserName: claims[identityKey].(string),
+			}
+		},
+		Authenticator: func(c *gin.Context) (interface{}, error) {
+			var loginVals login
+			if err := c.ShouldBind(&loginVals); err != nil {
+				return "", jwt.ErrMissingLoginValues
+			}
+			userID := loginVals.UserName
+			password := loginVals.PassWord
+
+			user, err := s.db.GetUserByName(userID)
+			if err != nil {
+				return nil, jwt.ErrFailedAuthentication
+			}
+
+			err = bcrypt.CompareHashAndPassword([]byte(user.PassWord), []byte(password)) //验证（对比）
+			if err != nil {
+				return nil, err
+			} else {
+				return user, nil
+			}
+		},
+		Unauthorized: func(c *gin.Context, code int, message string) {
+			c.JSON(code, gin.H{
+				"code":    code,
+				"message": message,
+			})
+		},
+		TokenLookup:   "header: Authorization, query: token, cookie: jwt",
+		TokenHeadName: "Bearer",
+		TimeFunc:      time.Now,
+		SendCookie:    true,
+	})
+
+	if err != nil {
+		s.Logger.Fatal("JWT Error:" + err.Error())
+	}
+
+	errInit := authMiddleware.MiddlewareInit()
+
+	if errInit != nil {
+		s.Logger.Fatal("authMiddleware.MiddlewareInit() Error:" + errInit.Error())
+	}
+
+	// 用户相关接口
+	s.POST("/login", authMiddleware.LoginHandler)
+	s.POST("/register", Handle(s.Register))
+	auth := s.Group("/auth").Use(authMiddleware.MiddlewareFunc())
+	{
+		// Refresh time can be longer than token timeout
+		auth.GET("/refresh_token", authMiddleware.RefreshHandler)
+		auth.POST("/logout", authMiddleware.LogoutHandler)
+		auth.GET("/hello", helloHandler)
+	}
+
+	// 管理相关接口
+	apiV1 := s.Group("/admin/api/v1").
+		Use(authMiddleware.MiddlewareFunc())
 	{
 		apiV1.GET("/routers", Handle(s.GetRouters))
 	}
