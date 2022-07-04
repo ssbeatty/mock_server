@@ -1,6 +1,9 @@
 package web
 
-import "mock_server/pkg/log"
+import (
+	"mock_server/internal/storage"
+	"mock_server/pkg/log"
+)
 
 type Logger interface {
 	WithField(key string, value interface{}) log.Logger
@@ -19,4 +22,8 @@ type Logger interface {
 	Panicf(format string, args ...interface{})
 	Fatal(args ...interface{})
 	Fatalf(format string, args ...interface{})
+}
+
+type IStorage interface {
+	GetAllRouters() ([]storage.API, error)
 }

@@ -3,6 +3,8 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"github.com/Pacific73/gorm-cache/cache"
+	"github.com/Pacific73/gorm-cache/config"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -54,14 +56,25 @@ func (s *Service) Open() error {
 	if err != nil {
 		return err
 	}
+	if allCache, err := cache.NewGorm2Cache(&config.CacheConfig{
+		CacheLevel:           config.CacheLevelAll,
+		CacheStorage:         config.CacheStorageMemory,
+		InvalidateWhenUpdate: true,
+		CacheTTL:             24 * 60 * 60 * 1000,
+		CacheMaxItemCnt:      5000,
+		CacheSize:            5000,
+		DebugMode:            false,
+	}); err == nil {
+		err := d.Use(allCache)
+		if err != nil {
+			return err
+		}
+	}
+
 	s.db = d
 	if err = s.db.AutoMigrate(new(API)); err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func (s *Service) WriteRecord(record interface{}) {
-	s.db.Save(record)
 }

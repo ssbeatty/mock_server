@@ -11,7 +11,7 @@ import (
 type Service struct {
 	*gin.Engine
 
-	db     *storage.Service
+	db     IStorage
 	Addr   string
 	Logger Logger
 }
@@ -33,14 +33,20 @@ func NewService(Addr string, db *storage.Service) *Service {
 func (s *Service) Serve() error {
 	s.initRouters()
 
-	s.Logger.Info("web服务加载成功.")
+	s.Logger.Infof("web服务加载成功. Listen: %s", s.Addr)
 	return s.Run(s.Addr)
 }
 
 func (s *Service) initRouters() {
-	s.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
+	s.Use(CORS).Use(exportHeaders)
+
+	s.GET("/healthz", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
 	})
+
+	// admin apis
+	apiV1 := s.Group("/admin/api/v1")
+	{
+		apiV1.GET("/routers", Handle(s.GetRouters))
+	}
 }
