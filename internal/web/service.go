@@ -13,7 +13,9 @@ import (
 )
 
 const (
-	identityKey = "id"
+	identityKey     = "id"
+	JWTTokenTimeout = time.Hour
+	JWTMaxRefresh   = 14 * 24 * time.Hour
 )
 
 type Service struct {
@@ -78,8 +80,8 @@ func (s *Service) initRouters() {
 	authMiddleware, err := jwt.New(&jwt.GinJWTMiddleware{
 		Realm:       "Mock Server",
 		Key:         data,
-		Timeout:     time.Hour,
-		MaxRefresh:  time.Hour,
+		Timeout:     JWTTokenTimeout,
+		MaxRefresh:  JWTMaxRefresh,
 		IdentityKey: identityKey,
 		PayloadFunc: func(data interface{}) jwt.MapClaims {
 			if v, ok := data.(*storage.User); ok {
@@ -91,9 +93,11 @@ func (s *Service) initRouters() {
 		},
 		IdentityHandler: func(c *gin.Context) interface{} {
 			claims := jwt.ExtractClaims(c)
-			return &storage.User{
-				UserName: claims[identityKey].(string),
+			user, err := s.db.GetUserByName(claims[identityKey].(string))
+			if err != nil {
+				return nil
 			}
+			return user
 		},
 		Authenticator: func(c *gin.Context) (interface{}, error) {
 			var loginVals login
@@ -143,7 +147,7 @@ func (s *Service) initRouters() {
 	auth := s.Group("/auth").Use(authMiddleware.MiddlewareFunc())
 	{
 		// Refresh time can be longer than token timeout
-		auth.GET("/refresh_token", authMiddleware.RefreshHandler)
+		auth.POST("/refresh_token", authMiddleware.RefreshHandler)
 		auth.POST("/logout", authMiddleware.LogoutHandler)
 		auth.GET("/hello", helloHandler)
 	}
@@ -153,5 +157,11 @@ func (s *Service) initRouters() {
 		Use(authMiddleware.MiddlewareFunc())
 	{
 		apiV1.GET("/routers", Handle(s.GetRouters))
+		apiV1.GET("/router/:id", Handle(s.GetRouter))
+		apiV1.POST("/router", Handle(s.CreateRouter))
+		apiV1.PUT("/router", Handle(s.UpdateRouter))
+		apiV1.DELETE("/router/:id", Handle(s.DeleteRouter))
 	}
+
+	s.Any("/mock/*path", Handle(s.RouteingMapIndex))
 }

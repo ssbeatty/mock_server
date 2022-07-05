@@ -2,6 +2,7 @@ package storage
 
 import (
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm/logger"
 	"testing"
 )
 
@@ -15,8 +16,9 @@ func TestMain(m *testing.M) {
 		UserName: "odoo",
 		PassWord: "odoo",
 	})
-
 	service.Open()
+	service.db.Logger = logger.Default.LogMode(logger.Info)
+
 	m.Run()
 }
 

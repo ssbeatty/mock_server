@@ -25,7 +25,14 @@ type Logger interface {
 }
 
 type IStorage interface {
-	GetAllRouters() ([]storage.API, error)
 	GetUserByName(username string) (*storage.User, error)
 	SaveUser(username, password, email string) error
+	UpdateUser(user *storage.User) error
+
+	GetAllRouters() ([]storage.API, error)
+	GetRouterById(id int64) (*storage.API, error)
+	GetRouterByPath(path string) (*storage.API, error)
+	CreateRouter(method, path, header, response string) (*storage.API, error)
+	UpdateRouter(id int64, method, path, header, response string) (*storage.API, error)
+	DeleteRouter(id int64) error
 }
