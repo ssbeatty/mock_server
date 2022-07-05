@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -28,7 +29,7 @@ type Service struct {
 }
 
 type login struct {
-	UserName string `form:"username" json:"username" binding:"required"`
+	UserName string `form:"account" json:"account" binding:"required"`
 	PassWord string `form:"password" json:"password" binding:"required"`
 }
 
@@ -54,18 +55,8 @@ func (s *Service) Serve() error {
 	return s.Run(s.Addr)
 }
 
-func helloHandler(c *gin.Context) {
-	claims := jwt.ExtractClaims(c)
-	user, _ := c.Get(identityKey)
-	c.JSON(200, gin.H{
-		"userID":   claims[identityKey],
-		"userName": user.(*storage.User).UserName,
-		"text":     "Hello World.",
-	})
-}
-
 func (s *Service) initRouters() {
-	s.Use(CORS).Use(exportHeaders)
+	s.Use(CORS)
 
 	s.GET("/healthz", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
@@ -109,12 +100,12 @@ func (s *Service) initRouters() {
 
 			user, err := s.db.GetUserByName(userID)
 			if err != nil {
-				return nil, jwt.ErrFailedAuthentication
+				return nil, errors.New("用户名不存在")
 			}
 
-			err = bcrypt.CompareHashAndPassword([]byte(user.PassWord), []byte(password)) //验证（对比）
+			err = bcrypt.CompareHashAndPassword([]byte(user.PassWord), []byte(password))
 			if err != nil {
-				return nil, err
+				return nil, errors.New("用户名或密码错误")
 			} else {
 				return user, nil
 			}
@@ -144,12 +135,12 @@ func (s *Service) initRouters() {
 	// 用户相关接口
 	s.POST("/login", authMiddleware.LoginHandler)
 	s.POST("/register", Handle(s.Register))
+	s.POST("/refresh_token", authMiddleware.RefreshHandler)
+
 	auth := s.Group("/auth").Use(authMiddleware.MiddlewareFunc())
 	{
 		// Refresh time can be longer than token timeout
-		auth.POST("/refresh_token", authMiddleware.RefreshHandler)
 		auth.POST("/logout", authMiddleware.LogoutHandler)
-		auth.GET("/hello", helloHandler)
 	}
 
 	// 管理相关接口

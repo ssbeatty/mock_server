@@ -22,9 +22,3 @@ func CORS(ctx *gin.Context) {
 
 	ctx.Next()
 }
-
-// exportHeaders export header Content-Disposition for axios
-func exportHeaders(ctx *gin.Context) {
-	ctx.Header("Access-Control-Expose-Headers", "Content-Disposition")
-	ctx.Next()
-}
